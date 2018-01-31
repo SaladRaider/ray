@@ -590,11 +590,36 @@ def test_equals():
         ray_df.equals(None)
 
 
-def test_eval():
-    ray_df = create_test_dataframe()
+def test_eval_df_use_case():
+    df = pd.DataFrame({'a': np.random.randn(10),
+                    'b': np.random.randn(10)})
+    ray_df = rdf.from_pandas(df, 5)
+    df.eval("e = arctan2(sin(a), b)",
+            engine='python',
+            parser='pandas', inplace=True)
+    expect = df.e
+    ray_df.eval("e = arctan2(sin(a), b)",
+            engine='python',
+            parser='pandas', inplace=True)
+    got = ray_df.e
+    # TODO: Use a series equality validator.
+    assert ray_df_equals_pandas(got, pd.DataFrame(expect, columns=['e']))
 
-    with pytest.raises(NotImplementedError):
-        ray_df.eval(None)
+
+def test_eval_df_arithmetic_subexpression():
+    df = pd.DataFrame({'a': np.random.randn(10),
+                    'b': np.random.randn(10)})
+    ray_df = rdf.from_pandas(df, 5)
+    df.eval("e = sin(a + b)",
+            engine='python',
+            parser='pandas', inplace=True)
+    expect = df.e
+    ray_df.eval("e = sin(a + b)",
+            engine='python',
+            parser='pandas', inplace=True)
+    got = ray_df.e
+    # TODO: Use a series equality validator.
+    assert ray_df_equals_pandas(got, pd.DataFrame(expect, columns=['e']))
 
 
 def test_ewm():

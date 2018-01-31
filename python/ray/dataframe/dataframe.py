@@ -5,6 +5,7 @@ from __future__ import print_function
 import pandas as pd
 import numpy as np
 import ray
+from pandas.util._validators import validate_bool_kwarg
 
 
 class DataFrame(object):
@@ -476,6 +477,7 @@ class DataFrame(object):
 
     def drop(self, labels=None, axis=0, index=None, columns=None, level=None,
              inplace=False, errors='raise'):
+        inplace = validate_bool_kwarg(inplace, "inplace")
         if errors == 'raise':
             def check_values_exist(selector, values):
                 if isinstance(values, pd.Index):
@@ -531,7 +533,15 @@ class DataFrame(object):
         raise NotImplementedError("Not Yet implemented.")
 
     def eval(self, expr, inplace=False, **kwargs):
-        raise NotImplementedError("Not Yet implemented.")
+        inplace = validate_bool_kwarg(inplace, "inplace")
+        new_df = self._map_partitions(lambda df: df.eval(expr, inplace=False, **kwargs))
+        if inplace:
+            # TODO: return ray series instead of ray df
+            self.e = new_df.drop(columns=self.columns)
+            self._df = new_df._df
+            self.columns = new_df.columns
+        else:
+            return new_df
 
     def ewm(self, com=None, span=None, halflife=None, alpha=None,
             min_periods=0, freq=None, adjust=True, ignore_na=False, axis=0):
