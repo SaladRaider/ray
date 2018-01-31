@@ -3,6 +3,8 @@ from __future__ import division
 from __future__ import print_function
 
 import pandas as pd
+from pandas.util._validators import validate_bool_kwarg
+
 import numpy as np
 import ray
 import itertools
@@ -167,19 +169,6 @@ class DataFrame(object):
         new_df = [_deploy_func.remote(func, part) for part in self._df]
 
         return DataFrame(new_df, self.columns, index=self._index)
-
-    def _map_partitions_to_values(self, func, *args):
-        """Apply a function on each partition.
-
-        Args:
-            func (callable): The function to Apply.
-
-        Returns:
-            A new list containing the result of the function called
-            onto each partition.
-        """
-        assert(callable(func))
-        return [_deploy_func.remote(func, part) for part in self._df]
 
     def add_prefix(self, prefix):
         """Add a prefix to each of the column names.
@@ -568,6 +557,7 @@ class DataFrame(object):
 
     def drop(self, labels=None, axis=0, index=None, columns=None, level=None,
              inplace=False, errors='raise'):
+        inplace = validate_bool_kwarg(inplace, "inplace")
         if errors == 'raise':
             def check_values_exist(selector, values):
                 if isinstance(values, pd.Index):
@@ -576,13 +566,13 @@ class DataFrame(object):
                     if not isinstance(values, list):
                         values = [values]
                     values = set(values)
-                    existing_values = self._map_partitions_to_values(
+                    existing_values = ray.get(self._map_partitions(
                         lambda df: set([value for value in values if selector(df).contains(value)])
-                    )
+                    )._df)
                     # TODO: parallize reduction
                     merged_existing_values = set()
                     for label in existing_values:
-                        merged_existing_values |= ray.get(label)
+                        merged_existing_values |= label
                     if len(values) != len(merged_existing_values):
                         raise ValueError("labels {} not contained in axis".format(
                             list(values - merged_existing_values)
@@ -623,7 +613,15 @@ class DataFrame(object):
         raise NotImplementedError("Not Yet implemented.")
 
     def eval(self, expr, inplace=False, **kwargs):
-        raise NotImplementedError("Not Yet implemented.")
+        inplace = validate_bool_kwarg(inplace, "inplace")
+        new_df = self._map_partitions(lambda df: df.eval(expr, inplace=False, **kwargs))
+        if inplace:
+            # TODO: return ray series instead of ray df
+            self.e = new_df.drop(columns=self.columns)
+            self._df = new_df._df
+            self.columns = new_df.columns
+        else:
+            return new_df
 
     def ewm(self, com=None, span=None, halflife=None, alpha=None,
             min_periods=0, freq=None, adjust=True, ignore_na=False, axis=0):
