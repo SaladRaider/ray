@@ -458,7 +458,14 @@ class DataFrame(object):
         raise NotImplementedError("Not Yet implemented.")
 
     def bfill(self, axis=None, inplace=False, limit=None, downcast=None):
-        raise NotImplementedError("Not Yet implemented.")
+        new_df = self.fillna(
+            method='bfill', axis=axis, limit=limit, downcast=downcast
+        )
+        if inplace:
+            self._df = new_df._df
+            self.columns = new_df.columns
+        else:
+            return new_df
 
     def bool(self):
         """Return the bool of a single element PandasObject.
@@ -640,7 +647,14 @@ class DataFrame(object):
         raise NotImplementedError("Not Yet implemented.")
 
     def ffill(self, axis=None, inplace=False, limit=None, downcast=None):
-        raise NotImplementedError("Not Yet implemented.")
+        new_df = self.fillna(
+            method='ffill', axis=axis, limit=limit, downcast=downcast
+        )
+        if inplace:
+            self._df = new_df._df
+            self.columns = new_df.columns
+        else:
+            return new_df
 
     def fillna(self, value=None, method=None, axis=None, inplace=False,
                limit=None, downcast=None, **kwargs):
