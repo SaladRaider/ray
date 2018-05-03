@@ -4562,6 +4562,7 @@ class DataFrame(object):
         if level is not None:
             raise NotImplementedError("Mutlilevel index not yet supported "
                                       "in Pandas on Ray")
+        axis = pd.DataFrame()._get_axis_number(axis)
 
         # Adding two DataFrames causes an outer join.
         if isinstance(other, DataFrame):
