@@ -775,10 +775,24 @@ class DataFrame(object):
             If inplace is set to True, returns None, otherwise returns a new
             DataFrame with the dropna applied.
         """
+        dummy_frame = pd.DataFrame(index=self.index, columns=self.columns)
+        dummy_frame.dropna(axis=axis, how=how, thresh=thresh,
+                           subset=subset, inplace=inplace)
         if is_list_like(axis):
-            raise NotImplementedError(
-                "To contribute to Pandas on Ray, please visit "
-                "github.com/ray-project/ray.")
+            axis = set([dummy_frame._get_axis_number(ax) for ax in axis])
+            result = self
+            for ax in axis:
+                result = result.dropna(
+                    axis=ax, how=how, thresh=thresh, subset=subset)
+            if not inplace:
+                return result
+
+            return self._update_inplace(
+                row_partitions=result._row_partitions,
+                col_partitions=result._col_partitions,
+                columns=result._col_metadata.index,
+                index=result._row_metadata.index
+            )
 
         axis = pd.DataFrame()._get_axis_number(axis)
         inplace = validate_bool_kwarg(inplace, "inplace")
