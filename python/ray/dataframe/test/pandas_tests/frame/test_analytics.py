@@ -24,6 +24,23 @@ import pandas.io.formats.printing as printing
 import pandas.util.testing as tm
 from pandas.tests.frame.common import TestData
 
+import ray.dataframe as rdf
+from ray.dataframe.utils import (
+    from_pandas,
+    to_pandas)
+
+
+def ray_df_equals(ray_df1, ray_df2, check_like=False, check_exact=False):
+    return to_pandas(ray_df1).sort_index().equals(
+        to_pandas(ray_df2).sort_index()
+    )
+    # return tm.assert_frame_equal(
+    #     to_pandas(ray_df1).sort_index(),
+    #     to_pandas(ray_df2).sort_index(),
+    #     check_like=check_like,
+    #     check_exact=check_exact
+    # )
+
 
 class TestDataFrameAnalytics(TestData):
 
@@ -1887,39 +1904,41 @@ class TestDataFrameAnalytics(TestData):
 
     def test_clip(self):
         median = self.frame.median().median()
-        original = self.frame.copy()
+        original = rdf.DataFrame(self.frame.copy())
+        frame_copy = original.copy()
 
-        capped = self.frame.clip_upper(median)
+        capped = original.clip_upper(median)
         assert not (capped.values > median).any()
 
-        floored = self.frame.clip_lower(median)
+        floored = frame_copy.clip_lower(median)
         assert not (floored.values < median).any()
 
-        double = self.frame.clip(upper=median, lower=median)
+        double = frame_copy.clip(upper=median, lower=median)
         assert not (double.values != median).any()
 
-        # Verify that self.frame was not changed inplace
-        assert (self.frame.values == original.values).all()
+        # Verify that frame_copy was not changed inplace
+        assert (frame_copy.values == original.values).all()
 
     def test_inplace_clip(self):
         # GH #15388
         median = self.frame.median().median()
-        frame_copy = self.frame.copy()
+        original = rdf.DataFrame(self.frame.copy())
+        frame_copy = original.copy()
 
         frame_copy.clip_upper(median, inplace=True)
         assert not (frame_copy.values > median).any()
-        frame_copy = self.frame.copy()
+        frame_copy = original.copy()
 
         frame_copy.clip_lower(median, inplace=True)
         assert not (frame_copy.values < median).any()
-        frame_copy = self.frame.copy()
+        frame_copy = original.copy()
 
         frame_copy.clip(upper=median, lower=median, inplace=True)
         assert not (frame_copy.values != median).any()
 
     def test_dataframe_clip(self):
         # GH #2747
-        df = DataFrame(np.random.randn(1000, 2))
+        df = rdf.DataFrame(np.random.randn(1000, 2))
 
         for lb, ub in [(-1, 1), (1, -1)]:
             clipped_df = df.clip(lb, ub)
@@ -1936,18 +1955,22 @@ class TestDataFrameAnalytics(TestData):
         # TODO(jreback)
         # clip on mixed integer or floats
         # with integer clippers coerces to float
-        df = DataFrame({'A': [1, 2, 3],
+        df = rdf.DataFrame({'A': [1, 2, 3],
                         'B': [1., np.nan, 3.]})
         result = df.clip(1, 2)
-        expected = DataFrame({'A': [1, 2, 2.],
+        expected = rdf.DataFrame({'A': [1, 2, 2.],
                               'B': [1., np.nan, 2.]})
-        tm.assert_frame_equal(result, expected, check_like=True)
+        # assert ray_df_equals(result, expected, check_like=True)
+        tm.assert_frame_equal(
+            to_pandas(result), to_pandas(expected), check_like=True
+        )
 
     @pytest.mark.parametrize("inplace", [True, False])
     def test_clip_against_series(self, inplace):
         # GH #6966
 
-        df = DataFrame(np.random.randn(1000, 2))
+        pd_df = DataFrame(np.random.randn(1000, 2))
+        df = rdf.DataFrame(pd_df)
         lb = Series(np.random.randn(1000))
         ub = lb + 1
 
@@ -1958,19 +1981,22 @@ class TestDataFrameAnalytics(TestData):
             clipped_df = df
 
         for i in range(2):
-            lb_mask = original.iloc[:, i] <= lb
-            ub_mask = original.iloc[:, i] >= ub
+            lb_mask = pd_df.iloc[:, i] <= lb
+            ub_mask = pd_df.iloc[:, i] >= ub
             mask = ~lb_mask & ~ub_mask
 
-            result = clipped_df.loc[lb_mask, i]
+            result = to_pandas(clipped_df).loc[lb_mask, i]
             tm.assert_series_equal(result, lb[lb_mask], check_names=False)
             assert result.name == i
 
-            result = clipped_df.loc[ub_mask, i]
+            result = to_pandas(clipped_df).loc[ub_mask, i]
             tm.assert_series_equal(result, ub[ub_mask], check_names=False)
             assert result.name == i
 
-            tm.assert_series_equal(clipped_df.loc[mask, i], df.loc[mask, i])
+            tm.assert_series_equal(
+                to_pandas(clipped_df).loc[mask, i],
+                to_pandas(df).loc[mask, i]
+            )
 
     @pytest.mark.parametrize("inplace", [True, False])
     @pytest.mark.parametrize("lower", [[2, 3, 4], np.asarray([2, 3, 4])])
@@ -1980,30 +2006,31 @@ class TestDataFrameAnalytics(TestData):
     ])
     def test_clip_against_list_like(self, inplace, lower, axis, res):
         # GH #15390
-        original = self.simple.copy(deep=True)
+        original = rdf.DataFrame(self.simple).copy(deep=True)
 
         result = original.clip(lower=lower, upper=[5, 6, 7],
                                axis=axis, inplace=inplace)
 
-        expected = pd.DataFrame(res,
+        expected = rdf.DataFrame(res,
                                 columns=original.columns,
                                 index=original.index)
         if inplace:
             result = original
-        tm.assert_frame_equal(result, expected, check_exact=True)
+        assert ray_df_equals(result, expected, check_exact=True)
 
     @pytest.mark.parametrize("axis", [0, 1, None])
     def test_clip_against_frame(self, axis):
-        df = DataFrame(np.random.randn(1000, 2))
-        lb = DataFrame(np.random.randn(1000, 2))
+        df = pd.DataFrame(np.random.randn(1000, 2))
+        lb = pd.DataFrame(np.random.randn(1000, 2))
         ub = lb + 1
 
-        clipped_df = df.clip(lb, ub, axis=axis)
+        clipped_df = rdf.DataFrame(df).clip(lb, ub, axis=axis)
 
         lb_mask = df <= lb
         ub_mask = df >= ub
         mask = ~lb_mask & ~ub_mask
 
+        clipped_df = to_pandas(clipped_df)
         tm.assert_frame_equal(clipped_df[lb_mask], lb[lb_mask])
         tm.assert_frame_equal(clipped_df[ub_mask], ub[ub_mask])
         tm.assert_frame_equal(clipped_df[mask], df[mask])
@@ -2011,13 +2038,14 @@ class TestDataFrameAnalytics(TestData):
     def test_clip_with_na_args(self):
         """Should process np.nan argument as None """
         # GH # 17276
-        tm.assert_frame_equal(self.frame.clip(np.nan), self.frame)
-        tm.assert_frame_equal(self.frame.clip(upper=[1, 2, np.nan]),
-                              self.frame)
-        tm.assert_frame_equal(self.frame.clip(lower=[1, np.nan, 3]),
-                              self.frame)
-        tm.assert_frame_equal(self.frame.clip(upper=np.nan, lower=np.nan),
-                              self.frame)
+        frame_copy = rdf.DataFrame(self.frame)
+        assert ray_df_equals(frame_copy.clip(np.nan), frame_copy)
+        assert ray_df_equals(frame_copy.clip(upper=[1, 2, np.nan]),
+                              frame_copy)
+        assert ray_df_equals(frame_copy.clip(lower=[1, np.nan, 3]),
+                              frame_copy)
+        assert ray_df_equals(frame_copy.clip(upper=np.nan, lower=np.nan),
+                              frame_copy)
 
     # Matrix-like
 
