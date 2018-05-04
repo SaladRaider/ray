@@ -840,6 +840,7 @@ def test_dense_nan_df():
     test_dropna(ray_df, pd_df)
     test_dropna_inplace(ray_df, pd_df)
     test_dropna_multiple_axes(ray_df, pd_df)
+    test_dropna_multiple_axes_inplace(ray_df, pd_df)
 
 
 @pytest.fixture
@@ -1329,23 +1330,30 @@ def test_dropna_inplace(ray_df, pd_df):
 
 @pytest.fixture
 def test_dropna_multiple_axes(ray_df, pd_df):
+    assert ray_df_equals_pandas(
+        ray_df.dropna(how='all', axis=[0, 1]),
+        pd_df.dropna(how='all', axis=[0, 1])
+    )
+    assert ray_df_equals_pandas(
+        ray_df.dropna(how='all', axis=(0, 1)),
+        pd_df.dropna(how='all', axis=(0, 1))
+    )
+
+
+@pytest.fixture
+def test_dropna_multiple_axes_inplace(ray_df, pd_df):
     ray_df = ray_df.copy()
     pd_df = pd_df.copy()
-    cp = ray_df.copy()
-    result = ray_df.dropna(how='all', axis=[0, 1])
-    result2 = ray_df.dropna(how='all', axis=(0, 1))
-    expected = pd_df.dropna(how='all').dropna(how='all', axis=1)
 
-    assert ray_df_equals_pandas(result, expected)
-    assert ray_df_equals_pandas(result2, expected)
+    ray_df.dropna(how='all', axis=[0, 1], inplace=True)
+    pd_df.dropna(how='all', axis=[0, 1], inplace=True)
 
-    assert ray_df_equals_pandas(result, expected)
-    assert ray_df_equals_pandas(result2, expected)
-    assert ray_df_equals(ray_df, cp)
+    assert ray_df_equals_pandas(ray_df, pd_df)
 
-    inp = ray_df.copy()
-    inp.dropna(how='all', axis=(0, 1), inplace=True)
-    assert ray_df_equals_pandas(inp, expected)
+    ray_df.dropna(how='all', axis=(0, 1), inplace=True)
+    pd_df.dropna(how='all', axis=(0, 1), inplace=True)
+
+    assert ray_df_equals_pandas(ray_df, pd_df)
 
 
 def test_duplicated():

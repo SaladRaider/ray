@@ -776,17 +776,16 @@ class DataFrame(object):
             DataFrame with the dropna applied.
         """
         if is_list_like(axis):
-            axis = set([pd.DataFrame()._get_axis_number(ax) for ax in axis])
+            axis = [pd.DataFrame()._get_axis_number(ax) for ax in axis]
             result = self
-            for ax in axis:
+            for ax in axis:  # TODO: inefficient, df built as intermediate
                 result = result.dropna(
                     axis=ax, how=how, thresh=thresh, subset=subset)
             if not inplace:
                 return result
 
             return self._update_inplace(
-                row_partitions=result._row_partitions,
-                col_partitions=result._col_partitions,
+                block_partitions=result._block_partitions,
                 columns=result._col_metadata.index,
                 index=result._row_metadata.index
             )
