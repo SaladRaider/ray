@@ -775,9 +775,6 @@ class DataFrame(object):
             If inplace is set to True, returns None, otherwise returns a new
             DataFrame with the dropna applied.
         """
-        dummy_frame = pd.DataFrame(index=self.index, columns=self.columns)
-        dummy_frame.dropna(axis=axis, how=how, thresh=thresh,
-                           subset=subset, inplace=inplace)
         if is_list_like(axis):
             axis = set([dummy_frame._get_axis_number(ax) for ax in axis])
             result = self
