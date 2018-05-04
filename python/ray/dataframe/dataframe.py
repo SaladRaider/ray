@@ -776,7 +776,7 @@ class DataFrame(object):
             DataFrame with the dropna applied.
         """
         if is_list_like(axis):
-            axis = set([dummy_frame._get_axis_number(ax) for ax in axis])
+            axis = set([pd.DataFrame()._get_axis_number(ax) for ax in axis])
             result = self
             for ax in axis:
                 result = result.dropna(
