@@ -777,7 +777,9 @@ class DataFrame(object):
         """
         if is_list_like(axis):
             result = self
-            for ax in axis:  # TODO: inefficient, df built as intermediate
+            # TODO(kunalgosar): this builds an intermediate dataframe,
+            # which does unnecessary computation
+            for ax in axis:
                 result = result.dropna(
                     axis=ax, how=how, thresh=thresh, subset=subset)
             if not inplace:
@@ -785,8 +787,8 @@ class DataFrame(object):
 
             return self._update_inplace(
                 block_partitions=result._block_partitions,
-                columns=result._col_metadata.index,
-                index=result._row_metadata.index
+                columns=result.columns,
+                index=result.index
             )
 
         axis = pd.DataFrame()._get_axis_number(axis)

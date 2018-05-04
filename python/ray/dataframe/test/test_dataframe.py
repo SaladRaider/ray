@@ -1342,18 +1342,21 @@ def test_dropna_multiple_axes(ray_df, pd_df):
 
 @pytest.fixture
 def test_dropna_multiple_axes_inplace(ray_df, pd_df):
-    ray_df = ray_df.copy()
-    pd_df = pd_df.copy()
+    ray_df_copy = ray_df.copy()
+    pd_df_copy = pd_df.copy()
 
-    ray_df.dropna(how='all', axis=[0, 1], inplace=True)
-    pd_df.dropna(how='all', axis=[0, 1], inplace=True)
+    ray_df_copy.dropna(how='all', axis=[0, 1], inplace=True)
+    pd_df_copy.dropna(how='all', axis=[0, 1], inplace=True)
 
-    assert ray_df_equals_pandas(ray_df, pd_df)
+    assert ray_df_equals_pandas(ray_df_copy, pd_df_copy)
 
-    ray_df.dropna(how='all', axis=(0, 1), inplace=True)
-    pd_df.dropna(how='all', axis=(0, 1), inplace=True)
+    ray_df_copy = ray_df.copy()
+    pd_df_copy = pd_df.copy()
 
-    assert ray_df_equals_pandas(ray_df, pd_df)
+    ray_df_copy.dropna(how='all', axis=(0, 1), inplace=True)
+    pd_df_copy.dropna(how='all', axis=(0, 1), inplace=True)
+
+    assert ray_df_equals_pandas(ray_df_copy, pd_df_copy)
 
 
 def test_duplicated():
